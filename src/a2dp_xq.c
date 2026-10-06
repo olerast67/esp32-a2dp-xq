@@ -56,6 +56,8 @@
 #define XQ_HAVE_ALL_CAPS_EVT (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0))
 // ESP-IDF 5.5: connection handles, esp_a2d_cie_sbc_t fields and the audio MTU.
 #define XQ_HAVE_CONN_HDL (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0))
+// ESP-IDF 5.4: AVRCP reports init and deinit as events; before, both complete inside the call.
+#define XQ_HAVE_AVRC_PROF_EVT (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0))
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -98,12 +100,14 @@ static const char *TAG = "a2dp_xq";
 
 #if XQ_BT_SUPPORTED
 
+#if XQ_HAVE_CONN_HDL  // the ESP_A2D_SBC_CIE_* names exist since ESP-IDF 5.5
 _Static_assert(XQ_SBC_CIE_SF_44K == ESP_A2D_SBC_CIE_SF_44K, "CIE sampling frequency bits");
 _Static_assert(XQ_SBC_CIE_CH_DUAL == ESP_A2D_SBC_CIE_CH_MODE_DUAL_CHANNEL, "CIE channel mode bits");
 _Static_assert(XQ_SBC_CIE_CH_JOINT == ESP_A2D_SBC_CIE_CH_MODE_JOINT_STEREO, "CIE channel mode bits");
 _Static_assert(XQ_SBC_CIE_BLOCKS_16 == ESP_A2D_SBC_CIE_BLOCK_LEN_16, "CIE block length bits");
 _Static_assert(XQ_SBC_CIE_SUBBANDS_8 == ESP_A2D_SBC_CIE_NUM_SUBBANDS_8, "CIE subband bits");
 _Static_assert(XQ_SBC_CIE_ALLOC_LOUDNESS == ESP_A2D_SBC_CIE_ALLOC_MTHD_LOUDNESS, "CIE allocation bits");
+#endif
 
 // ------------------------------------------------------------------ tuning ----
 #define WORKER_STACK_BYTES 6144  // event_cb and remote_cb of the application run here too
@@ -530,6 +534,7 @@ static void gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *p) {
 #if XQ_AVRCP
 static void ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
     EventGroupHandle_t eg = s_bt.events;
+#if XQ_HAVE_AVRC_PROF_EVT
     if (event == ESP_AVRC_CT_PROF_STATE_EVT) {
         if (!eg) return;
         esp_avrc_init_state_t st = param->avrc_ct_init_stat.state;
@@ -537,6 +542,9 @@ static void ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
         if (st == ESP_AVRC_DEINIT_SUCCESS || st == ESP_AVRC_DEINIT_ALREADY) xEventGroupSetBits(eg, EVB_CT_DEINIT);
         return;
     }
+#else
+    (void)eg;
+#endif
     switch (event) {
         case ESP_AVRC_CT_CONNECTION_STATE_EVT:
         case ESP_AVRC_CT_CHANGE_NOTIFY_EVT:
@@ -555,6 +563,7 @@ static void ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
 
 static void tg_cb(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t *param) {
     EventGroupHandle_t eg = s_bt.events;
+#if XQ_HAVE_AVRC_PROF_EVT
     if (event == ESP_AVRC_TG_PROF_STATE_EVT) {
         if (!eg) return;
         esp_avrc_init_state_t st = param->avrc_tg_init_stat.state;
@@ -562,6 +571,9 @@ static void tg_cb(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t *param) {
         if (st == ESP_AVRC_DEINIT_SUCCESS || st == ESP_AVRC_DEINIT_ALREADY) xEventGroupSetBits(eg, EVB_TG_DEINIT);
         return;
     }
+#else
+    (void)eg;
+#endif
     switch (event) {
         case ESP_AVRC_TG_CONNECTION_STATE_EVT:
         case ESP_AVRC_TG_PASSTHROUGH_CMD_EVT:
@@ -1412,13 +1424,15 @@ static void teardown(void) {
 #if XQ_AVRCP
     if (s_bt.ct_inited) {
         xEventGroupClearBits(s_bt.events, EVB_CT_DEINIT);
-        if (esp_avrc_ct_deinit() == ESP_OK && !wait_bits(EVB_CT_DEINIT, STACK_OP_TIMEOUT_MS))
+        bool sent = esp_avrc_ct_deinit() == ESP_OK;
+        if (sent && XQ_HAVE_AVRC_PROF_EVT && !wait_bits(EVB_CT_DEINIT, STACK_OP_TIMEOUT_MS))
             ESP_LOGW(TAG, "AVRCP CT deinit timeout");
         s_bt.ct_inited = false;
     }
     if (s_bt.tg_inited) {
         xEventGroupClearBits(s_bt.events, EVB_TG_DEINIT);
-        if (esp_avrc_tg_deinit() == ESP_OK && !wait_bits(EVB_TG_DEINIT, STACK_OP_TIMEOUT_MS))
+        bool sent = esp_avrc_tg_deinit() == ESP_OK;
+        if (sent && XQ_HAVE_AVRC_PROF_EVT && !wait_bits(EVB_TG_DEINIT, STACK_OP_TIMEOUT_MS))
             ESP_LOGW(TAG, "AVRCP TG deinit timeout");
         s_bt.tg_inited = false;
     }
@@ -1539,7 +1553,9 @@ static int profiles_up(void) {
     if ((err = esp_avrc_tg_register_callback(tg_cb)) != ESP_OK) goto fail;
     if ((err = esp_avrc_tg_init()) != ESP_OK) goto fail;
     s_bt.tg_inited = true;
+#if XQ_HAVE_AVRC_PROF_EVT
     if (!wait_bits(EVB_CT_INIT | EVB_TG_INIT, STACK_OP_TIMEOUT_MS)) ESP_LOGW(TAG, "AVRCP init not confirmed");
+#endif
 
     // Target: accept the transport keys of the headphones, answer play-status registrations.
     esp_avrc_psth_bit_mask_t allowed, supported;

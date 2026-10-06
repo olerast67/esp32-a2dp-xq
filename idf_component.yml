@@ -15,8 +15,6 @@ tags:
   - avrcp
   - audio
   - headphones
-targets:
-  - esp32
 dependencies:
   idf: ">=5.3"
 files:
