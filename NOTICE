@@ -1,0 +1,6 @@
+esp32-a2dp-xq
+Copyright 2026 olerast67
+
+This product is licensed under the Apache License, Version 2.0 (LICENSE).
+It contains no third-party code. It calls the Bluedroid Bluetooth stack of ESP-IDF
+(https://github.com/espressif/esp-idf, Apache License 2.0), which is not part of this repository.

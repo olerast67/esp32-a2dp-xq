@@ -1,0 +1,32 @@
+version: "0.1.0"
+description: "ESP32 Bluetooth A2DP source with SBC-XQ (Dual Channel bitpool 38, 452 kbps) and fallback to Joint Stereo 53, per-device memory, PSRAM FIFO with TPDF dither, AVRCP buttons and absolute volume, discovery and pairing"
+url: "https://github.com/olerast67/esp32-a2dp-xq"
+repository: "https://github.com/olerast67/esp32-a2dp-xq.git"
+documentation: "https://olerast67.github.io/esp32-a2dp-xq/"
+issues: "https://github.com/olerast67/esp32-a2dp-xq/issues"
+license: "Apache-2.0"
+maintainers:
+  - "olerast67"
+tags:
+  - bluetooth
+  - a2dp
+  - sbc
+  - sbc-xq
+  - avrcp
+  - audio
+  - headphones
+targets:
+  - esp32
+dependencies:
+  idf: ">=5.3"
+files:
+  exclude:
+    - "test/**/*"
+    - "tools/**/*"
+    - "docs/**/*"
+    - ".github/**/*"
+    - "cmake/**/*"
+    - "build/**/*"
+examples:
+  - path: examples/idf/sine_to_headphones
+  - path: examples/idf/codec_report

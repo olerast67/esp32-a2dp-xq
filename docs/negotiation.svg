@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="470" viewBox="0 0 960 470" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="14">
+  <rect width="960" height="470" rx="10" fill="#ffffff"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3b4652"/>
+    </marker>
+  </defs>
+
+  <!-- lifelines -->
+  <rect x="40" y="24" width="210" height="44" rx="6" fill="#1f6feb"/>
+  <text x="145" y="51" fill="#ffffff" font-weight="600" text-anchor="middle">ESP32 with esp32-a2dp-xq</text>
+  <rect x="710" y="24" width="210" height="44" rx="6" fill="#3b4652"/>
+  <text x="815" y="51" fill="#ffffff" font-weight="600" text-anchor="middle">Headphones</text>
+  <line x1="145" y1="68" x2="145" y2="452" stroke="#c4ccd6" stroke-width="2" stroke-dasharray="5 5"/>
+  <line x1="815" y1="68" x2="815" y2="452" stroke="#c4ccd6" stroke-width="2" stroke-dasharray="5 5"/>
+
+  <!-- 1 connect -->
+  <line x1="150" y1="98" x2="808" y2="98" stroke="#3b4652" stroke-width="1.6" marker-end="url(#a)"/>
+  <text x="480" y="90" fill="#1c2128" text-anchor="middle">1. A2DP connection, AVRCP</text>
+
+  <!-- 2 caps -->
+  <line x1="810" y1="140" x2="152" y2="140" stroke="#3b4652" stroke-width="1.6" marker-end="url(#a)"/>
+  <text x="480" y="132" fill="#1c2128" text-anchor="middle">2. SBC capabilities: rates, channel modes, bitpool range</text>
+
+  <!-- 3 decision -->
+  <rect x="160" y="160" width="400" height="76" rx="6" fill="#eef4ff" stroke="#9cbcf5"/>
+  <text x="176" y="184" fill="#1c2128" font-weight="600">3. Ask for XQ when</text>
+  <text x="176" y="204" fill="#1c2128">Dual Channel, 44.1 kHz and bitpool 38 are in the caps,</text>
+  <text x="176" y="224" fill="#1c2128">no failure in device memory, name not blacklisted</text>
+
+  <!-- 4 pref mcc -->
+  <line x1="150" y1="268" x2="808" y2="268" stroke="#1f6feb" stroke-width="1.8" marker-end="url(#a)"/>
+  <text x="480" y="260" fill="#1f6feb" text-anchor="middle" font-weight="600">4. set_pref_mcc: Dual Channel, 16 blocks, 8 subbands, bitpool 38..38</text>
+
+  <!-- 5 outcomes -->
+  <rect x="40" y="296" width="430" height="140" rx="8" fill="#e9f7ef" stroke="#7cc79a"/>
+  <text x="58" y="322" fill="#0f5132" font-weight="700">Accepted: SBC-XQ</text>
+  <text x="58" y="346" fill="#1c2128">Dual Channel, bitpool 38 per channel</text>
+  <text x="58" y="366" fill="#1c2128">452 kbps at 44.1 kHz</text>
+  <text x="58" y="390" fill="#1c2128">30 s of stable stream: xq=ok in device memory</text>
+  <text x="58" y="410" fill="#1c2128">link lost within 20 s: one strike, two: xq=fail</text>
+
+  <rect x="490" y="296" width="430" height="140" rx="8" fill="#f6f8fa" stroke="#c4ccd6"/>
+  <text x="508" y="322" fill="#1c2128" font-weight="700">Refused, no answer in 4 s, or ESP-IDF &lt; 6.0</text>
+  <text x="508" y="346" fill="#1c2128">Joint Stereo, bitpool up to 53</text>
+  <text x="508" y="366" fill="#1c2128">328 kbps at 44.1 kHz</text>
+  <text x="508" y="390" fill="#1c2128">the stack's standard SBC configuration</text>
+  <text x="508" y="410" fill="#1c2128">that every A2DP sink accepts</text>
+</svg>
