@@ -17,8 +17,8 @@ Version 0.1.0 has not been run on hardware yet. The first hardware test will go 
 What is verified:
 
 - 1315 checks in the host tests pass: SBC frame length and bitrate, the bitpool search of the Bluedroid encoder, the XQ decision from the headphone capabilities, the PCM FIFO with underruns and flushes, the volume scales, the device memory file and a parser fuzz pass.
-- The ESP-IDF examples build with ESP-IDF 6.1 for the ESP32 without warnings with Bluetooth Classic enabled; `esp_a2d_source_set_pref_mcc` is linked into the sine example.
-- The Arduino examples build with the Arduino core 3.3.12 (ESP-IDF 5.5) with `-Wall -Wextra` and no warnings.
+- CI builds the ESP-IDF examples for the ESP32 with ESP-IDF 5.3, 5.5, 6.0 and 6.1 with Bluetooth Classic enabled, and for the ESP32-S3, where the library builds without Bluetooth Classic and reports it as unsupported. Warnings in the library fail the build.
+- CI builds the Arduino examples with the Arduino core 3.1.3 (ESP-IDF 5.3) and the latest core, and with PlatformIO.
 
 ## Comparison
 
