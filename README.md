@@ -145,4 +145,4 @@ On Windows without a C compiler, `python -m pip install ziglang cmake ninja` and
 
 Apache License 2.0, see [LICENSE](LICENSE). The library uses the Bluedroid stack of ESP-IDF (Apache-2.0) and no third-party code of its own.
 
-The code comes from an ESP32 music player I am building; the player will be published after its own hardware tests.
+The code comes from an ESP32 music player I am building; the player will be published after its own hardware tests. Most of the code was written by Claude (Anthropic) on my instructions; I set the tasks and checked the results with the tests and builds listed under Status.
