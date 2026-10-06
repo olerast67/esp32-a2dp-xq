@@ -55,7 +55,7 @@ bool openWav(const char *path) {
 
 void setup() {
   Serial.begin(115200);
-  if (!SD.begin(SD_CS)) {
+  if (!SD.begin(SD_CS, SPI, 20000000)) {
     Serial.println("no SD card");
     return;
   }

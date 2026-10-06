@@ -120,8 +120,11 @@ esp_err_t a2dp_xq_start(void) {
 
 void a2dp_xq_stop(void) {
     if (!atomic_exchange(&s_open, false)) return;
-    atomic_store(&s_paused, false);
+    // Stopped while paused: the worker must forget the pause too, or the next start would
+    // wait for a resume that a2dp_xq_pause(false) no longer reports.
+    bool was_paused = atomic_exchange(&s_paused, false);
     if (s_fifo_ready) xq_fifo_flush(&s_fifo);
+    if (was_paused) xq_core_sink_paused(false);
     xq_core_sink_open(false);
 }
 

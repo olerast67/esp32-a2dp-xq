@@ -9,3 +9,5 @@ CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY=y
 # The Bluetooth stack makes the application larger than the default 1 MB partition.
 CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
 CONFIG_FREERTOS_HZ=1000
+# The example writes the tone from app_main.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192

@@ -43,13 +43,13 @@
 #define XQ_BT_SUPPORTED 0
 #endif
 
-#if XQ_BT_SUPPORTED && defined(CONFIG_BT_AVRCP_ENABLED)
+#include "esp_idf_version.h"
+// AVRCP has its own Kconfig switch since ESP-IDF 5.4; before that it comes with A2DP.
+#if XQ_BT_SUPPORTED && (defined(CONFIG_BT_AVRCP_ENABLED) || ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 0))
 #define XQ_AVRCP 1
 #else
 #define XQ_AVRCP 0
 #endif
-
-#include "esp_idf_version.h"
 // ESP-IDF 6.0: sink capability reports and the preferred codec configuration (SBC-XQ).
 #define XQ_HAVE_PREF_MCC (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
 // ESP-IDF 6.1: the report of every sink codec (ignored, it carries a pointer).
@@ -81,14 +81,19 @@
 static const char *TAG = "a2dp_xq";
 
 // Arduino releases the Bluetooth controller memory before setup() unless a library says it
-// needs Bluetooth Classic: core 3.3 and newer through this header's constructor, older 3.x
-// cores through a strong btInUse().
+// needs Bluetooth Classic. Core 3.3 and newer: the constructor in this header. Older 3.x cores
+// on the ESP32: esp32-hal-bt.c defines btInUse() returning true, and the object is linked when
+// something references it, which init_impl() does through btStarted().
 #if defined(ARDUINO) && XQ_BT_SUPPORTED
 #if __has_include("esp32-hal-alloc-bt-classic-mem.h")
 #include "esp32-hal-alloc-bt-classic-mem.h"
+#define XQ_ARDUINO_KEEP_BT() ((void)0)
 #else
-bool btInUse(void) { return true; }
+#include "esp32-hal-bt.h"
+#define XQ_ARDUINO_KEEP_BT() ((void)btStarted())
 #endif
+#else
+#define XQ_ARDUINO_KEEP_BT() ((void)0)
 #endif
 
 #if XQ_BT_SUPPORTED
@@ -101,7 +106,7 @@ _Static_assert(XQ_SBC_CIE_SUBBANDS_8 == ESP_A2D_SBC_CIE_NUM_SUBBANDS_8, "CIE sub
 _Static_assert(XQ_SBC_CIE_ALLOC_LOUDNESS == ESP_A2D_SBC_CIE_ALLOC_MTHD_LOUDNESS, "CIE allocation bits");
 
 // ------------------------------------------------------------------ tuning ----
-#define WORKER_STACK_BYTES 4096
+#define WORKER_STACK_BYTES 6144  // event_cb and remote_cb of the application run here too
 #define WORKER_PRIORITY 8
 #define WORKER_TICK_MS 200
 #define QUEUE_LEN 32
@@ -1474,6 +1479,9 @@ static int stack_up(void) {
     }
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
         esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+        // The default follows sdkconfig (BTDM in the Arduino core); enable() below must get the
+        // same mode the controller was initialised with.
+        cfg.mode = ESP_BT_MODE_CLASSIC_BT;
         err = esp_bt_controller_init(&cfg);
         if (err != ESP_OK) goto fail;
     }
@@ -1598,6 +1606,7 @@ esp_err_t a2dp_xq_init(const a2dp_xq_config_t *cfg) { return esp_err_from(init_i
 static int init_impl(const a2dp_xq_config_t *cfg) {
     if (s_bt.initialized) return XQ_OK;
     if (!cfg) return XQ_EINVAL;
+    XQ_ARDUINO_KEEP_BT();
 #if CONFIG_BT_A2DP_USE_EXTERNAL_CODEC
     // With the external-codec build the stack expects encoded SBC frames
     // (esp_a2d_source_audio_data_send) and never calls the PCM data callback.
@@ -1624,10 +1633,10 @@ static int init_impl(const a2dp_xq_config_t *cfg) {
 
     s_bt.lock = xSemaphoreCreateMutex();
     s_bt.events = xEventGroupCreate();
-    // The message queue lives in PSRAM: it is only touched by tasks, never from an ISR.
-    s_bt.queue = xQueueCreateWithCaps(QUEUE_LEN, sizeof(bt_msg_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    s_bt.queue_caps = s_bt.queue != NULL;
-    if (!s_bt.queue) s_bt.queue = xQueueCreate(QUEUE_LEN, sizeof(bt_msg_t));
+    // Queue and worker stack in internal RAM: the worker writes the device memory file, and a
+    // file system on the internal flash disables the cache (and with it PSRAM) while it writes.
+    s_bt.queue = xQueueCreate(QUEUE_LEN, sizeof(bt_msg_t));
+    s_bt.queue_caps = false;
     int rc = XQ_ENOMEM;
     if (!s_bt.lock || !s_bt.events || !s_bt.queue) goto fail;
     if ((rc = xq_sink_init()) != XQ_OK) goto fail;
@@ -1654,16 +1663,11 @@ static int init_impl(const a2dp_xq_config_t *cfg) {
     }
     flush_outbox();
 
-    // The worker's stack goes to PSRAM when possible: it never runs code that disables the
-    // flash cache (file writes go to the SD card or another file system on its own task).
     BaseType_t core = tskNO_AFFINITY;
     if (s_bt.worker_core >= 0 && s_bt.worker_core < portNUM_PROCESSORS) core = s_bt.worker_core;
-    BaseType_t ok = xTaskCreatePinnedToCoreWithCaps(worker, "a2dp_xq", WORKER_STACK_BYTES, NULL, WORKER_PRIORITY,
-                                                    &s_bt.task, core, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    s_bt.task_caps = ok == pdPASS;
-    if (ok != pdPASS) {
-        ok = xTaskCreatePinnedToCore(worker, "a2dp_xq", WORKER_STACK_BYTES, NULL, WORKER_PRIORITY, &s_bt.task, core);
-    }
+    s_bt.task_caps = false;
+    BaseType_t ok = xTaskCreatePinnedToCore(worker, "a2dp_xq", WORKER_STACK_BYTES, NULL, WORKER_PRIORITY, &s_bt.task,
+                                            core);
     if (ok != pdPASS) {
         s_bt.initialized = false;
         rc = XQ_ENOMEM;
